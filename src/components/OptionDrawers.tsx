@@ -70,6 +70,7 @@ import { UnitSelect } from "./UnitSelect";
 const HIDING_ZONE_URL_PARAM = "hz";
 const HIDING_ZONE_COMPRESSED_URL_PARAM = "hzc";
 const PASTEBIN_URL_PARAM = "pb";
+const FETCH_URL_PARAM = "url";
 
 export const OptionDrawers = ({ className }: { className?: string }) => {
     useStore(triggerLocalRefresh);
@@ -113,6 +114,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
             HIDING_ZONE_COMPRESSED_URL_PARAM,
         );
         const pastebinId = params.get(PASTEBIN_URL_PARAM);
+        const fetchURL = params.get(FETCH_URL_PARAM);
 
         if (hidingZoneOld !== null) {
             // Legacy base64 encoding
@@ -143,12 +145,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 .then((data) => {
                     try {
                         loadHidingZone(data);
-                        // Remove pb parameter after initial load
-                        window.history.replaceState(
-                            {},
-                            "",
-                            window.location.pathname,
-                        );
                         toast.success(
                             "Successfully loaded data from Pastebin link!",
                         );
@@ -162,7 +158,40 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                         `Failed to load from Pastebin: ${error.message}`,
                     );
                 });
+        } else if (fetchURL !== null) {
+            toast.promise(
+                fetch(fetchURL)
+                    .then((response) => {
+                        if (!response.ok)
+                            throw new Error(
+                                `${response.status} ${response.statusText}`,
+                            );
+                        return response.text();
+                    })
+                    .then((data) => {
+                        try {
+                            loadHidingZone(data);
+                        } catch (e) {
+                            toast.error(
+                                `Invalid hiding zone data from provided URL: ${e}`,
+                            );
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("Hiding zone fetch error:", error);
+                        toast.error(
+                            `Failed to fetch hiding zone: ${error.message}`,
+                        );
+                    }),
+                {
+                    pending: "Loading hiding zone",
+                },
+            );
         }
+
+        // Remove any parameters to prevent state overwrite when the tab is refreshed,
+        // even if the user started playing that the fetch has failed.
+        window.history.replaceState({}, "", window.location.pathname);
     }, []);
 
     const loadHidingZone = (hidingZone: string) => {
